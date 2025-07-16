@@ -12,6 +12,7 @@ import { hideBin } from "yargs/helpers";
 
 import { configurePrompts } from "./prompts.js";
 import { configureAllTools } from "./tools.js";
+import { configureHttpTransport } from "./transport.js";
 import { UserAgentComposer } from "./useragent.js";
 import { packageVersion } from "./version.js";
 
@@ -31,11 +32,17 @@ const argv = yargs(hideBin(process.argv))
     describe: "Azure tenant ID (optional, required for multi-tenant scenarios)",
     type: "string",
   })
+  .option("http", {
+    describe: "Run as HTTP server instead of stdio",
+    type: "boolean",
+    default: false,
+  })
   .help()
   .parseSync();
 
 export const orgName = argv.organization as string;
 const tenantId = argv.tenant;
+const useHttp = argv.http;
 const orgUrl = "https://dev.azure.com/" + orgName;
 
 async function getAzureDevOpsToken(): Promise<AccessToken> {
@@ -85,9 +92,13 @@ async function main() {
   configurePrompts(server);
 
   configureAllTools(server, getAzureDevOpsToken, getAzureDevOpsClient(userAgentComposer), () => userAgentComposer.userAgent);
-
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
+  
+  if (useHttp) {
+    configureHttpTransport(server, orgName);
+  } else {
+    const transport = new StdioServerTransport();
+    await server.connect(transport);
+  }
 }
 
 main().catch((error) => {
